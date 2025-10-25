@@ -1,15 +1,12 @@
 ﻿using BepInEx;
 using HarmonyLib;
 using Panik;
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Runtime.ExceptionServices;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace CloverLife
 {
@@ -28,6 +25,8 @@ namespace CloverLife
             harmony.PatchAll(typeof(Patches));
         }
 
+
+        private GameplayMaster.GamePhase lastPhase = GameplayMaster.GamePhase.Undefined;
 
         private void Update()
         {
@@ -55,21 +54,31 @@ namespace CloverLife
                 startOfCutscene = false;
             }
 
-            // Set speed based on phase
-            if (phase == GameplayMaster.GamePhase.gambling)
+            // Only update speed if phase actually changed
+            if (phase != lastPhase)
             {
-                long jackpots = GameplayData.SpinsWithAtLeast1Jackpot_Get();
-                Data.settings.transitionSpeed = jackpots >= 1 ? 10 : 4;
-            }
-            else if (shouldSpeedUp)
-            {
-                Data.settings.transitionSpeed = 4;
-            }
-            else
-            {
-                Data.settings.transitionSpeed = 1;
+                lastPhase = phase;
+
+                if (phase == GameplayMaster.GamePhase.gambling)
+                {
+                    long jackpots = GameplayData.SpinsWithAtLeast1Jackpot_Get();
+                    Data.settings.transitionSpeed = jackpots >= 1 ? 10 : 4;
+                    Logger.LogInfo("Setting transition speed to " + Data.settings.transitionSpeed);
+                }
+                else if (shouldSpeedUp)
+                {
+                    Time.timeScale = 3;
+                    Logger.LogInfo("Setting time scale to " + Time.timeScale);
+                }
+                else
+                {
+                    Time.timeScale = 1;
+                    Data.settings.transitionSpeed = 1;
+                    Logger.LogInfo("Resetting speed to normal");
+                }
             }
         }
+
 
         private void OnDestroy()
         {
@@ -113,7 +122,7 @@ namespace CloverLife
             }
 
             // Only set corpse flag and add coins if we actually added parts
-            if (partsAdded > 0)
+            if (partsAdded > 0 || missingParts.Count == 0)
             {
                 corpse = true;
             }
