@@ -10,3 +10,6 @@ obj/
 # IDE-specific folders
 .vs/
 .vscode/
+
+# NuGet packages
+packages/

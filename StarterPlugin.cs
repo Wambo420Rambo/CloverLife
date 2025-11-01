@@ -8,19 +8,37 @@ using System.Numerics;
 using TMPro;
 using UnityEngine;
 
+
 namespace CloverLife
 {
     [BepInPlugin("CloverLife", "Clover Quality of Life", "1.0.0")]
     public class StarterPlugin : BaseUnityPlugin
     {
-
+        public static bool throwAway = false;
         public static bool corpse = false;
         public static bool startOfCutscene = false;
         private Harmony harmony;
-
+        private JsonConfig config = new JsonConfig();
 
         private void Awake()
         {
+            if (!config.LoadConfig())
+            {
+                config.DiscardCharm = 4;
+                config.JackpotSpeed = 10;
+                config.WhenGambling = 4;
+                config.Normal = 1;
+                config.WhenInCutscene = 3;
+
+                Logger.LogInfo("Setting default config values");
+            }
+            Logger.LogInfo("Config values: " +
+                $"DiscardCharm={config.DiscardCharm}, " +
+                $"JackpotSpeed={config.JackpotSpeed}, " +
+                $"WhenGambling={config.WhenGambling}, " +
+                $"Normal={config.Normal}, " +
+                $"WhenInCutscene={config.WhenInCutscene}");
+
             harmony = new Harmony("CloverLife");
             harmony.PatchAll(typeof(Patches));
         }
@@ -45,6 +63,7 @@ namespace CloverLife
             bool shouldSpeedUp = phase == GameplayMaster.GamePhase.cutscene ||
                                  phase == GameplayMaster.GamePhase.gambling;
 
+
             if (shouldSpeedUp && !startOfCutscene)
             {
                 startOfCutscene = true;
@@ -52,6 +71,19 @@ namespace CloverLife
             else if (!shouldSpeedUp && startOfCutscene)
             {
                 startOfCutscene = false;
+            }
+
+            if (throwAway && phase == GameplayMaster.GamePhase.preparation)
+            {
+                Time.timeScale = config.DiscardCharm;
+                Data.settings.transitionSpeed = config.DiscardCharm;
+                Logger.LogInfo("Setting transition speed to " + Time.timeScale);
+                throwAway = false;
+                new WaitForSeconds(0.5f);
+
+                Time.timeScale = config.Normal;
+                Data.settings.transitionSpeed = config.Normal;
+                Logger.LogInfo("Resetting speed to normal from discard");
             }
 
             // Only update speed if phase actually changed
@@ -62,18 +94,18 @@ namespace CloverLife
                 if (phase == GameplayMaster.GamePhase.gambling)
                 {
                     long jackpots = GameplayData.SpinsWithAtLeast1Jackpot_Get();
-                    Data.settings.transitionSpeed = jackpots >= 1 ? 10 : 4;
+                    Data.settings.transitionSpeed = jackpots >= config.Normal ? config.JackpotSpeed : config.WhenGambling;
                     Logger.LogInfo("Setting transition speed to " + Data.settings.transitionSpeed);
                 }
                 else if (shouldSpeedUp)
                 {
-                    Time.timeScale = 3;
+                    Time.timeScale = config.WhenInCutscene;
                     Logger.LogInfo("Setting time scale to " + Time.timeScale);
                 }
                 else
                 {
-                    Time.timeScale = 1;
-                    Data.settings.transitionSpeed = 1;
+                    Time.timeScale = config.Normal;
+                    Data.settings.transitionSpeed = config.Normal;
                     Logger.LogInfo("Resetting speed to normal");
                 }
             }
@@ -131,6 +163,7 @@ namespace CloverLife
         // Static patch class (can be nested or separate)
         private static class Patches
         {
+
             [HarmonyPrefix]
             [HarmonyPatch(typeof(CardsPackScript), "Animator_PackPunch")]
             private static bool Animator_PackPunchPrefix(CardsPackScript __instance)
@@ -145,6 +178,15 @@ namespace CloverLife
             {
                 __result = FastDealCoroutine(__instance);
                 return false; // Skip original method
+            }
+
+            [HarmonyPrefix]
+            [HarmonyPatch(typeof(PowerupScript), "ThrowAway")]
+            private static bool setThrowAway()
+            {
+                throwAway = true;
+                Debug.Log("ThrowAway called, setting throwAway to true");
+                return true; // Don't skip original method
             }
 
             private static IEnumerator FastDealCoroutine(MemoryPackDealUI instance)
