@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace CloverLife
 {
-    [BepInPlugin("CloverLife", "Clover Quality of Life", "1.0.0")]
+    [BepInPlugin("CloverLife", "Clover Quality of Life", "1.0.1")]
     public class StarterPlugin : BaseUnityPlugin
     {
         public static bool throwAway = false;
