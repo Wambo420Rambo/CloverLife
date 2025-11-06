@@ -1,6 +1,7 @@
 ﻿using BepInEx;
 using HarmonyLib;
 using Panik;
+using System.CodeDom;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -131,14 +132,19 @@ namespace CloverLife
                 PowerupScript.Identifier.Skeleton_Leg2
             };
 
-            // Filter out parts that are already owned or equipped
+            int availableSlots = Enumerable.Range(0, 4)
+                .Count(slot => PowerupScript.IsDrawerAvailable(slot));
+
+            // Filter and limit to available slots
             var missingParts = skeletonParts
-                .Where(part => !PowerupScript.IsInDrawer_Quick(part) && !PowerupScript.IsEquipped_Quick(part))
+                .Where(part => !PowerupScript.IsInDrawer_Quick(part) &&
+                               !PowerupScript.IsEquipped_Quick(part))
+                .Take(availableSlots)
                 .ToList();
+
 
             Logger.LogInfo("Missing skeleton parts: " + string.Join(", ", missingParts));
 
-            // Add all missing parts (PutInDrawer_Quick finds free drawers automatically)
             int partsAdded = 0;
             foreach (var part in missingParts)
             {
@@ -152,15 +158,12 @@ namespace CloverLife
                     Logger.LogWarning("Failed to add skeleton part: " + part + " (no free drawer?)");
                 }
             }
-
-            // Only set corpse flag and add coins if we actually added parts
             if (partsAdded > 0 || missingParts.Count == 0)
             {
                 corpse = true;
             }
         }
 
-        // Static patch class (can be nested or separate)
         private static class Patches
         {
 
@@ -186,6 +189,15 @@ namespace CloverLife
             {
                 throwAway = true;
                 Debug.Log("ThrowAway called, setting throwAway to true");
+                return true; // Don't skip original method
+            }
+
+            [HarmonyPrefix]
+            [HarmonyPatch(typeof(GameplayMaster), "Start")]
+            private static bool Start()
+            {
+                corpse = false;
+                Debug.Log("GameplayMaster Start called, setting corpse to false");
                 return true; // Don't skip original method
             }
 
